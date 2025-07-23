@@ -1,0 +1,67 @@
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://activiti.org/bpmn"
+             xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL http://www.omg.org/spec/BPMN/20100524/MODEL/BPMN20.xsd"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:activiti="http://activiti.org/bpmn">
+
+    <process id="leaveProcess" name="请假流程" isExecutable="true"
+             activiti:candidateStarterUsers="admin">
+
+        <startEvent id="startEvent"/>
+        <sequenceFlow sourceRef="startEvent" targetRef="employeeApplyTask"/>
+
+        <!-- 员工提交申请节点 -->
+        <userTask id="employeeApplyTask" name="提交请假申请"
+                  activiti:assignee="${employee}">
+            <extensionElements>
+                <activiti:formProperty id="leaveType" name="请假类型" type="enum" required="true">
+                    <activiti:value id="sick" name="病假"/>
+                    <activiti:value id="annual" name="年假"/>
+                    <activiti:value id="personal" name="事假"/>
+                </activiti:formProperty>
+                <activiti:formProperty id="gender" name="性别" type="enum" required="true">
+                    <activiti:value id="male" name="男"/>
+                    <activiti:value id="female" name="女"/>
+                </activiti:formProperty>
+                <activiti:formProperty id="age" name="年龄" type="integer" required="true"/>
+                <activiti:formProperty id="phone" name="手机号码" type="string" required="true"/>
+                <activiti:formProperty id="startDate" name="开始日期" type="date" required="true"/>
+                <activiti:formProperty id="endDate" name="结束日期" type="date" required="true"/>
+                <activiti:formProperty id="reason" name="请假原因" type="string"/>
+                <activiti:formProperty id="address" name="地址" type="string"/>
+
+            </extensionElements>
+        </userTask>
+        <sequenceFlow sourceRef="employeeApplyTask" targetRef="managerApprovalTask"/>
+
+        <!-- 领导审批节点 -->
+        <userTask id="managerApprovalTask" name="领导审批"
+                  activiti:assignee="${manager}">
+            <extensionElements>
+                <activiti:formProperty id="approvalStatus"
+                                       name="审批结果"
+                                       type="enum"
+                                       required="true">
+                    <activiti:value id="approved" name="批准"/>
+                    <activiti:value id="rejected" name="拒绝"/>
+                </activiti:formProperty>
+                <activiti:formProperty id="comments" name="审批意见" type="string"/>
+            </extensionElements>
+        </userTask>
+        <sequenceFlow sourceRef="managerApprovalTask" targetRef="employeeConfirmTask"/>
+
+        <!-- 员工确认节点 -->
+        <userTask id="employeeConfirmTask" name="确认审批结果" activiti:assignee="${employee}">
+            <extensionElements>
+                <activiti:formProperty id="confirmationStatus"
+                                       name="确认状态"
+                                       type="enum"
+                                       required="true">
+                    <activiti:value id="confirmed" name="确认"/>
+                </activiti:formProperty>
+            </extensionElements>
+        </userTask>
+        <sequenceFlow sourceRef="employeeConfirmTask" targetRef="endEvent"/>
+        <endEvent id="endEvent"/>
+    </process>
+</definitions>

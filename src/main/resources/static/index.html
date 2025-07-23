@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>请假流程系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h2 {
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .tasks-container {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .employee-tasks, .manager-tasks {
+            width: 48%;
+        }
+        .task-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .task-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+        .task-details {
+            margin-top: 20px;
+        }
+        .employee-details {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .confirmation-section {
+            margin: 20px 0;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+<h1>请假流程系统</h1>
+
+<div id="startProcessForm" class="form-group">
+    <h2>发起请假流程</h2>
+    <form id="startLeaveForm">
+        <div class="form-group">
+            <label for="employeeId">员工编号：</label>
+            <input type="text" id="employeeId" required>
+        </div>
+        <div class="form-group">
+            <label for="managerId">领导编号：</label>
+            <input type="text" id="managerId" required>
+        </div>
+        <button type="submit">发起请假流程</button>
+    </form>
+    <div id="processStarted" class="hidden">
+        <p>流程已启动！流程实例ID：<span id="processInstanceId"></span></p>
+    </div>
+</div>
+
+<div class="tasks-container">
+    <div class="employee-tasks">
+        <h2>员工任务</h2>
+        <button id="loadEmployeeTasksBtn">加载员工任务</button>
+        <div id="employeeTasksList"></div>
+    </div>
+
+    <div class="manager-tasks">
+        <h2>领导任务</h2>
+        <button id="loadManagerTasksBtn">加载领导任务</button>
+        <!-- 添加统计按钮 -->
+        <button id="loadManagerTaskCountBtn">查询已处理任务数量</button>
+        <div id="managerTaskCount" class="hidden"></div>
+        <div id="managerTasksList"></div>
+    </div>
+</div>
+
+<div id="taskDetails" class="hidden">
+    <h2 id="taskName"></h2>
+    <div id="employeeData" class="hidden">
+        <h3>审批信息</h3>
+        <div id="employeeDetails"></div>
+    </div>
+    <div id="taskForm"></div>
+    <button id="completeTaskBtn" class="hidden">提交</button>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // 发起请假流程
+        $('#startLeaveForm').on('submit', function(e) {
+            e.preventDefault();
+            const employeeId = $('#employeeId').val();
+            const managerId = $('#managerId').val();
+            $.post('/api/leave/start', { employeeId, managerId }, function(data) {
+                $('#processInstanceId').text(data.processInstanceId);
+                $('#processStarted').removeClass('hidden');
+                alert('请假流程已启动！');
+                $('#startLeaveForm')[0].reset();
+            });
+        });
+
+        // 加载员工任务
+        $('#loadEmployeeTasksBtn').on('click', function() {
+            const employeeId = prompt('请输入员工编号：');
+            if (employeeId) {
+                $.get('/api/leave/tasks', { userId: employeeId }, function(data) {
+                    if (data.length === 0) {
+                        $('#employeeTasksList').html('<p>没有找到员工任务。</p>');
+                    } else {
+                        let tasksHTML = '';
+                        data.forEach(task => {
+                            tasksHTML += `
+                                    <div class="task-item employee-task" data-task-id="${task.taskId}" data-process-instance-id="${task.processInstanceId}">
+                                        <div class="task-header">${task.taskName}</div>
+                                        <p>创建时间：${task.createTime}</p>
+                                        <p>分配给：${task.assignee}</p>
+                                    </div>
+                                `;
+                        });
+                        $('#employeeTasksList').html(tasksHTML);
+                    }
+                });
+            }
+        });
+
+        // 添加统计功能的事件处理
+        $('#loadManagerTaskCountBtn').on('click', function() {
+            const managerId = prompt('请输入领导编号：');
+            if (managerId) {
+                $.get('/api/leave/manager/tasks/count', { managerId }, function(count) {
+                    $('#managerTaskCount').html(`<p>已处理任务数量: <strong>${count}</strong></p>`);
+                    $('#managerTaskCount').removeClass('hidden');
+                });
+            }
+        });
+
+        // 加载领导任务
+        $('#loadManagerTasksBtn').on('click', function() {
+            const managerId = prompt('请输入领导编号：');
+            if (managerId) {
+                $.get('/api/leave/tasks', { userId: managerId }, function(data) {
+                    if (data.length === 0) {
+                        $('#managerTasksList').html('<p>没有找到领导任务。</p>');
+                    } else {
+                        let tasksHTML = '';
+                        data.forEach(task => {
+                            tasksHTML += `
+                                    <div class="task-item manager-task" data-task-id="${task.taskId}" data-process-instance-id="${task.processInstanceId}">
+                                        <div class="task-header">${task.taskName}</div>
+                                        <p>创建时间：${task.createTime}</p>
+                                        <p>分配给：${task.assignee}</p>
+                                    </div>
+                                `;
+                        });
+                        $('#managerTasksList').html(tasksHTML);
+                    }
+                });
+            }
+        });
+
+        // 定义当前任务 ID 和流程实例 ID 的变量
+        let currentTaskId = null;
+        let currentProcessInstanceId = null;
+
+        // 点击任务查看详情
+        $('#employeeTasksList, #managerTasksList').on('click', '.task-item', function() {
+            currentTaskId = $(this).data('task-id');
+            currentProcessInstanceId = $(this).data('process-instance-id');
+            const taskName = $(this).find('.task-header').text();
+
+            $('#taskName').text(taskName);
+            $('#employeeData').addClass('hidden');
+            $('#completeTaskBtn').addClass('hidden');
+
+            // 显示审批信息
+            if (taskName === '确认审批结果' || taskName === '领导审批') {
+                $.get(`/api/leave/task/variables`, { taskId: currentTaskId }, function(variables) {
+                    let detailsHTML = '';
+
+                    if (taskName === '确认审批结果') {
+                        // 显示领导审批信息
+                        const status = variables.approvalStatus === 'approved' ? '批准' : '拒绝';
+                        detailsHTML += `<p><strong>审批结果:</strong> ${status}</p>`;
+                        detailsHTML += `<p><strong>审批意见:</strong> ${variables.comments || '无'}</p>`;
+                        $('#employeeDetails').html(detailsHTML);
+                        $('#employeeData').removeClass('hidden');
+                    }
+                    else if (taskName === '领导审批') {
+                        // 显示完整的员工申请信息
+                        detailsHTML += `<p><strong>员工编号:</strong> ${variables.employee || ''}</p>`;
+                        detailsHTML += `<p><strong>请假类型:</strong> ${variables.leaveType || ''}</p>`;
+                        detailsHTML += `<p><strong>开始日期:</strong> ${variables.startDate || ''}</p>`;
+                        detailsHTML += `<p><strong>结束日期:</strong> ${variables.endDate || ''}</p>`;
+                        detailsHTML += `<p><strong>请假原因:</strong> ${variables.reason || ''}</p>`;
+                        $('#employeeDetails').html(detailsHTML);
+                        $('#employeeData').removeClass('hidden');
+                    }
+                });
+            }
+
+            // 获取任务表单定义以填充表单
+            $.get(`/api/leave/task/form`, { taskId: currentTaskId }, function(formData) {
+                let formHTML = '';
+
+                if (taskName === '确认审批结果') {
+                    // 员工确认任务只显示确认按钮
+                    formHTML = `
+                        <div class="confirmation-section">
+                            <button type="button" id="confirmButton">确认审批结果</button>
+                        </div>
+                    `;
+                }
+                else if (taskName === '领导审批') {
+                    // 领导审批表单
+                    formHTML = '<form id="taskCompleteForm">';
+                    formHTML += `<div class="form-group"><label for="approvalStatus">审批结果:</label>`;
+                    formHTML += `<select id="approvalStatus" name="approvalStatus" required>`;
+                    formHTML += `<option value="批准">批准</option>`;
+                    formHTML += `<option value="拒绝">拒绝</option>`;
+                    formHTML += '</select></div>';
+                    formHTML += `<div class="form-group"><label for="comments">审批意见:</label>`;
+                    formHTML += `<textarea id="comments" name="comments" rows="3"></textarea></div>`;
+                    formHTML += '</form>';
+                    $('#completeTaskBtn').removeClass('hidden');
+                }
+                else if (taskName === '提交请假申请') {
+                    // 员工申请表单
+                    formHTML = '<form id="taskCompleteForm">';
+                    formHTML += `<div class="form-group"><label for="leaveType">请假类型:</label>`;
+                    formHTML += `<select id="leaveType" name="leaveType" required>`;
+                    formHTML += `<option value="病假">病假</option>`;
+                    formHTML += `<option value="年假">年假</option>`;
+                    formHTML += `<option value="事假">事假</option>`;
+                    formHTML += '</select></div>';
+                    formHTML += `<div class="form-group"><label for="gender">性别:</label>`;
+                    formHTML += `<select id="gender" name="gender" required>`;
+                    formHTML += `<option value="男">男</option>`;
+                    formHTML += `<option value="女">女</option>`;
+                    formHTML += '</select></div>';
+                    formHTML += `<div class="form-group"><label for="startDate">开始日期:</label>`;
+                    formHTML += `<input type="date" id="startDate" name="startDate" required></div>`;
+                    formHTML += `<div class="form-group"><label for="endDate">结束日期:</label>`;
+                    formHTML += `<input type="date" id="endDate" name="endDate" required></div>`;
+                    formHTML += `<div class="form-group"><label for="reason">请假原因:</label>`;
+                    formHTML += `<textarea id="reason" name="reason" rows="3"></textarea></div>`;
+                    formHTML += '</form>';
+                    $('#completeTaskBtn').removeClass('hidden');
+                }
+
+                $('#taskForm').html(formHTML);
+                $('#taskDetails').removeClass('hidden');
+            });
+        });
+
+        // 确认按钮的事件处理
+        $(document).on('click', '#confirmButton', function() {
+            const formData = { confirmationStatus: "确认" };
+
+            $.ajax({
+                url: `/api/leave/complete?taskId=${currentTaskId}`,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(formData),
+                success: function() {
+                    alert("确认成功！");
+                    location.reload();
+                },
+                error: function(xhr, status, error) {
+                    alert('提交失败: ' + error);
+                }
+            });
+        });
+
+        // 完成任务（用于非确认任务）
+        $('#taskDetails').on('click', '#completeTaskBtn', function() {
+            if (!currentTaskId) {
+                alert('未选择任务');
+                return;
+            }
+
+            const formData = {};
+            const formInputs = $('#taskCompleteForm').serializeArray();
+            formInputs.forEach(input => {
+                formData[input.name] = input.value;
+            });
+
+            $.ajax({
+                url: `/api/leave/complete?taskId=${currentTaskId}`,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(formData),
+                success: function(response) {
+                    alert(response);
+                    location.reload();
+                },
+                error: function(xhr, status, error) {
+                    alert('提交失败: ' + error);
+                }
+            });
+        });
+    });
+</script>
+</body>
+</html>
